@@ -108,6 +108,7 @@ type Product struct {
 	Width          float64          `json:"width"`  // in cm
 	Height         float64          `json:"height"` // in cm
 	CategoryID     *uint            `gorm:"index" json:"category_id"`
+	CustomFields   string           `gorm:"type:text" json:"custom_fields"` // JSON array
 	TaxCategoryID  *uint            `gorm:"index" json:"tax_category_id"`
 	Category       *Category        `json:"category,omitempty"`
 	EmbeddingJSON  string           `gorm:"type:text" json:"embedding_json"` // Stores vector array
@@ -189,6 +190,7 @@ type OrderItem struct {
 	OrderID   uint      `gorm:"not null;index" json:"order_id"`
 	VariantID uint      `gorm:"not null" json:"variant_id"`
 	Title     string    `json:"title"`
+	CustomFieldValues string `gorm:"type:text" json:"custom_field_values"`
 	Price     float64   `json:"price"`
 	Quantity  int       `json:"quantity"`
 	ImageURL  string    `json:"image_url"`

@@ -46,6 +46,7 @@ interface Product {
   image_url: string;
   category_id: number | null;
   tax_category_id?: number | null;
+  custom_fields?: string;
   options?: ProductOption[];
   variants?: ProductVariant[];
 }
@@ -261,6 +262,7 @@ const ProductManagerModule: React.FC = () => {
     setImageUrl('');
     setCategoryId('');
     setTaxCategoryId('');
+    setCustomFields([]);
     setOptions([]);
     setVariants([]);
     setEditingProductId(null);
@@ -617,7 +619,47 @@ const ProductManagerModule: React.FC = () => {
                   className="w-full mt-3 px-4 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-900 transition-all shadow-sm"
                 />
               </div>
-            </form>
+            
+              {/* Custom Checkout Fields */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-4">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h3 className="font-bold text-slate-900">Custom Checkout Fields</h3>
+                    <p className="text-xs text-slate-500">Collect personalized info from customers during checkout (e.g. Engraving Text).</p>
+                  </div>
+                  <button type="button" onClick={() => setCustomFields([...customFields, { name: '', type: 'text', required: false }])} className="text-sm font-semibold text-violet-600 hover:text-violet-700 bg-violet-50 hover:bg-violet-100 px-3 py-1.5 rounded-lg transition-colors">
+                    + Add Field
+                  </button>
+                </div>
+                {customFields.map((field, idx) => (
+                  <div key={idx} className="flex items-center space-x-3 bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+                    <input 
+                      type="text" placeholder="Field Name (e.g. Engraving)" 
+                      value={field.name}
+                      onChange={e => { const newF = [...customFields]; newF[idx].name = e.target.value; setCustomFields(newF); }}
+                      className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-md focus:outline-none focus:border-slate-900"
+                    />
+                    <select 
+                      value={field.type}
+                      onChange={e => { const newF = [...customFields]; newF[idx].type = e.target.value; setCustomFields(newF); }}
+                      className="px-3 py-2 text-sm border border-slate-200 rounded-md focus:outline-none focus:border-slate-900"
+                    >
+                      <option value="text">Short Text</option>
+                      <option value="textarea">Long Text</option>
+                      <option value="file">File Upload (Image)</option>
+                    </select>
+                    <label className="flex items-center space-x-1 text-sm font-medium text-slate-700">
+                      <input type="checkbox" checked={field.required} onChange={e => { const newF = [...customFields]; newF[idx].required = e.target.checked; setCustomFields(newF); }} className="rounded border-slate-300 text-slate-900 focus:ring-slate-900" />
+                      <span>Required</span>
+                    </label>
+                    <button type="button" onClick={() => setCustomFields(customFields.filter((_, i) => i !== idx))} className="text-slate-400 hover:text-red-500 p-1">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              </form>
           </div>
           
           <div className="p-6 border-t border-slate-100 bg-slate-50">

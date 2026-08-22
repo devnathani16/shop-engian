@@ -207,6 +207,7 @@ func handleCheckoutProcess(c *gin.Context) {
 		Cart []struct {
 			VariantID uint `json:"variant_id"`
 			Quantity  int  `json:"quantity"`
+			CustomFieldValues map[string]interface{} `json:"custom_field_values"`
 		} `json:"cart"`
 		Address struct {
 			Lat          float64 `json:"lat"`
@@ -270,12 +271,20 @@ func handleCheckoutProcess(c *gin.Context) {
 		
 		subtotal += variant.Price * float64(item.Quantity)
 		
+		
+		var customFieldValuesStr string
+		if len(item.CustomFieldValues) > 0 {
+			b, _ := json.Marshal(item.CustomFieldValues)
+			customFieldValuesStr = string(b)
+		}
+
 		orderItems = append(orderItems, OrderItem{
 			VariantID: variant.ID,
 			Title:     variant.Title,
 			Price:     variant.Price,
 			Quantity:  item.Quantity,
 			ImageURL:  variant.ImageURL,
+			CustomFieldValues: customFieldValuesStr,
 		})
 	}
 

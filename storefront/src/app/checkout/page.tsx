@@ -13,15 +13,7 @@ declare global {
   }
 }
 
-interface CartItem {
-  variant_id: number;
-  quantity: number;
-  product: {
-    title: string;
-    price: number;
-    image_url: string;
-  }
-}
+type CartItem = any;
 
 interface ShippingRate {
   id: string;
@@ -34,6 +26,8 @@ export default function CheckoutPage() {
   const { formatPrice } = useCurrency();
   const { user, isLoaded } = useUser();
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [showCustomFieldsModal, setShowCustomFieldsModal] = useState(false);
+  const [tempCustomValues, setTempCustomValues] = useState<Record<number, Record<string, string>>>({});
   const [subdomain, setSubdomain] = useState('');
   
   // Checkout Config
@@ -110,7 +104,7 @@ export default function CheckoutPage() {
     setIsLoadingRates(true);
     try {
       const payload = {
-        cart: cart.map(item => ({ variant_id: item.variant_id, quantity: item.quantity })),
+        cart: cart.map((item: any) => ({ variant_id: item.variant_id, quantity: item.quantity })),
         pincode: addr.postcode,
         country: addr.country,
         state: addr.state,
@@ -173,11 +167,28 @@ export default function CheckoutPage() {
     setAppliedDiscountCode(discountCode);
   };
 
+  const handleCheckoutClick = () => {
+    const needsFields = cart.some(item => {
+      if (!item.product?.custom_fields) return false;
+      try {
+        const fields = JSON.parse(item.product.custom_fields);
+        return fields.length > 0 && !item.custom_field_values;
+      } catch { return false; }
+    });
+    if (needsFields) {
+      setShowCustomFieldsModal(true);
+    } else {
+      handlePlaceOrder();
+    }
+  };
+
   const handlePlaceOrder = async () => {
+    const latestCart = JSON.parse(localStorage.getItem('cart') || '[]');
+    const finalCart = latestCart.length > 0 ? latestCart : cart;
     setIsProcessing(true);
     try {
       const payload = {
-        cart: cart.map(item => ({ variant_id: item.variant_id, quantity: item.quantity })),
+        cart: finalCart.map((item: any) => ({ variant_id: item.variant_id, quantity: item.quantity, custom_field_values: item.custom_field_values || {} })),
         address: selectedAddress,
         shipping_rate: selectedRate,
         customer_email: email || 'guest@example.com',
@@ -783,7 +794,7 @@ export default function CheckoutPage() {
               </div>
 
               <button 
-                onClick={handlePlaceOrder}
+                onClick={handleCheckoutClick}
                 disabled={!selectedRate || isProcessing}
                 className="w-full bg-zinc-900 text-white py-4 rounded-xl font-bold hover:bg-zinc-800 transition-colors shadow-lg shadow-zinc-900/20 active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 disabled:shadow-none flex items-center justify-center"
               >
@@ -794,6 +805,91 @@ export default function CheckoutPage() {
 
         </div>
       </div>
+
+
+      {/* Custom Fields Modal */}
+      {showCustomFieldsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-900/40 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-zinc-100">
+            <h2 className="text-2xl font-extrabold text-zinc-900 mb-6">Product Personalization</h2>
+            <p className="text-zinc-500 mb-6">Some items in your cart require custom information before checkout.</p>
+            
+            <div className="space-y-8">
+              {cart.map((item, cartIdx) => {
+                if (!item.product?.custom_fields) return null;
+                let fields: any[] = [];
+                try { fields = JSON.parse(item.product.custom_fields); } catch {}
+                if (fields.length === 0) return null;
+
+                return (
+                  <div key={cartIdx} className="bg-zinc-50 p-6 rounded-2xl border border-zinc-100">
+                    <div className="flex items-center space-x-4 mb-4">
+                      <img src={item.product.image_url} alt={item.product.title} className="w-16 h-16 rounded-xl object-cover bg-white" />
+                      <div>
+                        <h3 className="font-bold text-zinc-900">{item.product.title}</h3>
+                        <p className="text-sm text-zinc-500">{item.variant.title}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      {fields.map((f, i) => (
+                        <div key={i}>
+                          <label className="block text-sm font-medium text-zinc-700 mb-1">
+                            {f.name} {f.required && <span className="text-red-500">*</span>}
+                          </label>
+                          {f.type === 'textarea' ? (
+                            <textarea 
+                              required={f.required}
+                              value={tempCustomValues[cartIdx]?.[f.name] || ''}
+                              onChange={e => setTempCustomValues({ ...tempCustomValues, [cartIdx]: { ...tempCustomValues[cartIdx], [f.name]: e.target.value } })}
+                              className="w-full px-4 py-2 border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900"
+                            />
+                          ) : (
+                            <input 
+                              type={f.type === 'file' ? 'file' : 'text'}
+                              required={f.required}
+                              value={f.type !== 'file' ? (tempCustomValues[cartIdx]?.[f.name] || '') : undefined}
+                              onChange={e => setTempCustomValues({ ...tempCustomValues, [cartIdx]: { ...tempCustomValues[cartIdx], [f.name]: e.target.value } })}
+                              className="w-full px-4 py-2 border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900"
+                            />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-8 flex space-x-4">
+              <button 
+                onClick={() => setShowCustomFieldsModal(false)}
+                className="flex-1 py-4 font-bold text-zinc-600 bg-zinc-100 rounded-xl hover:bg-zinc-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  const updatedCart = [...cart];
+                  for (let i = 0; i < updatedCart.length; i++) {
+                    if (tempCustomValues[i]) {
+                      updatedCart[i].custom_field_values = tempCustomValues[i];
+                    }
+                  }
+                  setCart(updatedCart);
+                  localStorage.setItem('cart', JSON.stringify(updatedCart));
+                  setShowCustomFieldsModal(false);
+                  
+                  setTimeout(() => handlePlaceOrder(), 100);
+                }}
+                className="flex-1 py-4 font-bold text-white bg-zinc-900 rounded-xl hover:bg-zinc-800 transition-colors shadow-lg"
+              >
+                Save & Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
