@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+grpcio
+grpcio-tools
+numpy
+pandas
+pydantic
+python-dotenv
+groq
+rembg[cpu]
+Pillow
+python-multipart
+python-dotenv==1.0.1
+requests

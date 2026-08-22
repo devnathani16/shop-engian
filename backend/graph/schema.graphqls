@@ -1,0 +1,44 @@
+type Product {
+  id: ID!
+  title: String!
+  description: String
+  sku: String
+  price: Float!
+  compare_at_price: Float
+  inventory_quantity: Int!
+  status: String!
+  is_active: Boolean!
+  variants: [ProductVariant!]
+}
+
+type ProductVariant {
+  id: ID!
+  product_id: Int!
+  title: String!
+  sku: String
+  price: Float!
+  inventory_quantity: Int!
+}
+
+type Order {
+  id: ID!
+  customer_email: String
+  total_amount: Float!
+  status: String!
+  payment_method: String
+  created_at: String!
+  items: [OrderItem!]
+}
+
+type OrderItem {
+  id: ID!
+  order_id: Int!
+  title: String!
+  quantity: Int!
+  price: Float!
+}
+
+type Query {
+  getProducts(shop_id: String!): [Product!]!
+  getOrders(shop_id: String!): [Order!]!
+}
