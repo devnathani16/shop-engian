@@ -8,6 +8,8 @@ import (
 	"math"
 	"mime/multipart"
 	"net/http"
+	"os"
+	"github.com/microcosm-cc/bluemonday"
 	"sort"
 	"time"
 
@@ -21,14 +23,18 @@ type GenerateDescriptionReq struct {
 }
 
 func handleGenerateDescription(c *gin.Context) {
-	shopInterface, exists := c.Get("shop")
-	if !exists {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Shop context missing"})
+	shopID := c.Param("id")
+	
+	// Enforce Plan Tier
+	var shop Shop
+	if err := db.Where("id = ?", shopID).First(&shop).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Shop not found"})
 		return
 	}
-	shop := shopInterface.(Shop)
-	shopID := shop.ID
-	_ = shopID
+	if shop.Plan == "starter" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "AI features require a Business or Scale plan"})
+		return
+	}
 
 	var req GenerateDescriptionReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -36,31 +42,21 @@ func handleGenerateDescription(c *gin.Context) {
 		return
 	}
 
-	// Make request to AIML service
-	aimlURL := "http://127.0.0.1:8000/generate-description"
+	var result struct {
+		Description string `json:"description"`
+	}
 	
-	payload, _ := json.Marshal(req)
-	resp, err := http.Post(aimlURL, "application/json", bytes.NewBuffer(payload))
-	if err != nil {
+	if err := CallAIMLService("/generate-description", req, &result); err != nil {
 		log.Printf("Failed to call AIML service: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "AI service unavailable"})
 		return
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		log.Printf("AIML service returned error code: %d", resp.StatusCode)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "AI generation failed"})
-		return
-	}
+	// Sanitize the raw HTML output to prevent stored XSS
+	p := bluemonday.UGCPolicy()
+	safeHTML := p.Sanitize(result.Description)
 
-	var result map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse AI response"})
-		return
-	}
-
-	c.JSON(http.StatusOK, result)
+	c.JSON(http.StatusOK, gin.H{"description": safeHTML})
 }
 
 func handleRemoveBackground(c *gin.Context) {
@@ -70,6 +66,10 @@ func handleRemoveBackground(c *gin.Context) {
 		return
 	}
 	shop := shopInterface.(Shop)
+	if shop.Plan == "starter" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "AI features require a Business or Scale plan"})
+		return
+	}
 	shopID := shop.ID
 	_ = shopID
 
@@ -112,8 +112,14 @@ func handleRemoveBackground(c *gin.Context) {
 	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	// Inject LLM Firewall Auth Header
+	secret := os.Getenv("AIML_INTERNAL_SECRET")
+	if secret == "" {
+		secret = "super-secret-default"
+	}
+	req.Header.Set("X-Internal-Secret", secret)
+
+	resp, err := aimlHTTPClient.Do(req)
 	if err != nil {
 		log.Printf("Failed to call AIML service: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "AI service unavailable"})

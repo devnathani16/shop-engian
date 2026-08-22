@@ -1,16 +1,13 @@
-from fastapi import FastAPI, File, UploadFile, Response
+from fastapi import FastAPI, HTTPException, Header, Depends, Header, HTTPException, Depends, File, UploadFile, Response
 import uvicorn
 import io
 from PIL import Image
 from rembg import remove
-import asyncio
 import grpc_server
 import os
 import json
 from pydantic import BaseModel
-from groq import Groq
-from stitch_mcp_bridge import generate_ui_via_stitch_mcp
-import asyncio
+from openai import OpenAI
 from dotenv import load_dotenv
 import requests
 import base64
@@ -19,14 +16,25 @@ import time
 
 load_dotenv()
 
+
 app = FastAPI(title="Shop.me AIML Service")
+
+INTERNAL_SECRET = os.environ.get("AIML_INTERNAL_SECRET", "super-secret-default")
+
+async def verify_internal_secret(x_internal_secret: str = Header(...)):
+    if x_internal_secret != INTERNAL_SECRET:
+        raise HTTPException(status_code=401, detail="Unauthorized: Invalid internal secret")
+
 
 @app.get("/health")
 def health_check():
     return {"status": "ok", "service": "aiml"}
 
-# Initialize Groq Client
-client = Groq(api_key=os.environ.get("GROQ_API_KEY", "your-default-key"))
+# Initialize OpenAI Client to route through LiteLLM Proxy
+client = OpenAI(
+    api_key="sk-shop-me-master-key",
+    base_url="http://127.0.0.1:4000/v1"
+)
 
 class ThemeRequest(BaseModel):
     prompt: str
@@ -65,7 +73,7 @@ Write a very brief (2-3 sentences max) actionable insight for the merchant. Tell
         print(f"Error generating insight: {e}")
         return {"insight": "Stock is low. Consider restocking soon.", "severity": "warning"}
 
-@app.post("/generate-theme")
+@app.post("/generate-theme", dependencies=[Depends(verify_internal_secret)])
 def generate_theme(req: ThemeRequest):
     try:
         # STEP 1: Generate Multi-Page JSON & Image Prompt with Groq (LLaMA 3)
@@ -228,55 +236,43 @@ class DescriptionRequest(BaseModel):
     title: str
     keywords: str
 
-@app.post("/generate-description")
+@app.post("/generate-description", dependencies=[Depends(verify_internal_secret)])
 def generate_description(req: DescriptionRequest):
     try:
-        # STEP 1: Use Groq to structure the product data, specs, and marketing copy
-        print(f"Structuring data via Groq for: {req.title}")
+        # LLM FIREWALL: Pre-flight input validation (Data Loss Prevention & Prompt Injection check)
+        blocked_keywords = ["ignore previous", "system prompt", "bypass", "jailbreak", "script>", "onload="]
+        lower_input = (req.title + " " + req.keywords).lower()
+        if any(bad in lower_input for bad in blocked_keywords):
+            raise HTTPException(status_code=400, detail="LLM Firewall: Potentially malicious input detected. Blocked.")
+        
+        # Enforce character limits to prevent token exhaustion attacks
+        if len(req.title) > 200 or len(req.keywords) > 500:
+            raise HTTPException(status_code=400, detail="LLM Firewall: Input exceeds maximum allowed length.")
+
+        print(f"Generating Tailwind UI via Groq for: {req.title}")
         chat_completion = client.chat.completions.create(
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a product data extractor. Extract and generate structured JSON containing: 'marketing_copy' (engaging description), 'features' (list of key selling points), and 'specs' (key-value pairs of technical specifications)."
+                    "content": "You are an expert ecommerce copywriter and web developer. Write an engaging, highly-detailed product description based on the title and keywords. Your output MUST be rich, styled HTML.\\nRequirements:\\n1. Use Tailwind CSS utility classes to style the elements (e.g. text-slate-700, bg-blue-50/50, p-6, rounded-2xl).\\n2. Create modern layouts with <table> or CSS Grid for technical specifications.\\n3. IMPORTANT: Return ONLY the HTML snippet (e.g. wrapped in a main <div>). Do NOT output full <html>, <head>, or <body> tags, and do NOT use markdown code blocks.\n4. CRITICAL: Do NOT generate 'Add to Cart', 'Buy Now', or checkout buttons. The storefront UI already provides native buttons for purchasing."
                 },
                 {
                     "role": "user",
                     "content": f"Title: {req.title}\\nKeywords: {req.keywords}",
                 }
             ],
-            model="openai/gpt-oss-120b",
-            temperature=0.3,
-            max_tokens=1024,
-            response_format={"type": "json_object"}
+            model="groq-llama-120b",
+            temperature=0.7,
+            max_tokens=2048,
         )
         
-        structured_data = chat_completion.choices[0].message.content
-        
-        # STEP 2: Use the genuine Google Stitch MCP Bridge
-        print("Delegating UI generation to Google Stitch MCP Bridge...")
-        
-        # Execute the async MCP bridge in the sync FastAPI endpoint
-        ui_html = asyncio.run(generate_ui_via_stitch_mcp(structured_data))
-        
-        if not ui_html or "<!-- Stitch returned empty response -->" in ui_html:
-            print("Stitch MCP failed or returned empty. Falling back to Groq HTML generation...")
-            # Fallback to Groq if Stitch MCP fails
-            fallback_completion = client.chat.completions.create(
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "Generate a beautiful, raw HTML product description snippet with Tailwind CSS using this data: " + structured_data + ". IMPORTANT: Return ONLY the HTML snippet (e.g. wrapped in a <div>). Do NOT output full <html>, <head>, or <body> tags, and do NOT use markdown code blocks."
-                    }
-                ],
-                model="openai/gpt-oss-120b"
-            )
-            ui_html = fallback_completion.choices[0].message.content
-
+        ui_html = chat_completion.choices[0].message.content
         return {"description": ui_html}
     
     except Exception as e:
         from fastapi import HTTPException
         raise HTTPException(status_code=500, detail=str(e))
+
 
 
 
@@ -340,7 +336,7 @@ def update_embedding(req: UpdateEmbeddingRequest):
         from fastapi import HTTPException
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/remove-background")
+@app.post("/remove-background", dependencies=[Depends(verify_internal_secret)])
 async def remove_background(file: UploadFile = File(...)):
     try:
         contents = await file.read()
@@ -367,4 +363,4 @@ if __name__ == "__main__":
     grpc_thread.start()
     
     # Start the FastAPI server on port 8000
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8000)

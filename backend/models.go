@@ -41,6 +41,7 @@ type Shop struct {
 	CustomCheckoutFields string   `gorm:"type:text" json:"custom_checkout_fields"` // JSON array of custom fields
 	EnableAIRecommendations bool  `gorm:"default:false" json:"enable_ai_recommendations"`
 	EnableAISearch          bool  `gorm:"default:false" json:"enable_ai_search"`
+	Plan                    string `gorm:"default:'starter'" json:"plan"`
 	CreatedAt           time.Time `json:"created_at"`
 	UpdatedAt           time.Time `json:"updated_at"`
 }

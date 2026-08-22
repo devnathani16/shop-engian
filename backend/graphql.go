@@ -18,10 +18,15 @@ func graphqlHandler() gin.HandlerFunc {
 	// Setup resolver with DI
 	res := &graph.Resolver{
 		GetProductsFunc: func(ctx context.Context, shopID string) ([]*model.Product, error) {
-			// Find shop in core DB
+			userID, ok := ctx.Value("userID").(uint)
+			if !ok {
+				return nil, fmt.Errorf("unauthorized")
+			}
+			
+			// Find shop in core DB and verify ownership
 			var shop Shop
-			if err := db.Where("id = ?", shopID).First(&shop).Error; err != nil {
-				return nil, fmt.Errorf("shop not found")
+			if err := db.Where("id = ? AND user_id = ?", shopID, userID).First(&shop).Error; err != nil {
+				return nil, fmt.Errorf("shop not found or access denied")
 			}
 
 			// Get tenant DB
@@ -67,9 +72,14 @@ func graphqlHandler() gin.HandlerFunc {
 			return gqlProducts, nil
 		},
 		GetOrdersFunc: func(ctx context.Context, shopID string) ([]*model.Order, error) {
+			userID, ok := ctx.Value("userID").(uint)
+			if !ok {
+				return nil, fmt.Errorf("unauthorized")
+			}
+
 			var shop Shop
-			if err := db.Where("id = ?", shopID).First(&shop).Error; err != nil {
-				return nil, fmt.Errorf("shop not found")
+			if err := db.Where("id = ? AND user_id = ?", shopID, userID).First(&shop).Error; err != nil {
+				return nil, fmt.Errorf("shop not found or access denied")
 			}
 
 			tenantDB, err := GlobalTenantManager.GetConnection(shop.DBName)
@@ -112,7 +122,13 @@ func graphqlHandler() gin.HandlerFunc {
 	h := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{Resolvers: res}))
 
 	return func(c *gin.Context) {
-		h.ServeHTTP(c.Writer, c.Request)
+		userID, exists := c.Get("userID")
+		if !exists {
+			c.JSON(401, gin.H{"error": "unauthorized"})
+			return
+		}
+		ctx := context.WithValue(c.Request.Context(), "userID", userID)
+		h.ServeHTTP(c.Writer, c.Request.WithContext(ctx))
 	}
 }
 
@@ -120,6 +136,12 @@ func graphqlHandler() gin.HandlerFunc {
 func playgroundHandler() gin.HandlerFunc {
 	h := playground.Handler("GraphQL Playground", "/api/graphql")
 	return func(c *gin.Context) {
-		h.ServeHTTP(c.Writer, c.Request)
+		userID, exists := c.Get("userID")
+		if !exists {
+			c.JSON(401, gin.H{"error": "unauthorized"})
+			return
+		}
+		ctx := context.WithValue(c.Request.Context(), "userID", userID)
+		h.ServeHTTP(c.Writer, c.Request.WithContext(ctx))
 	}
 }

@@ -1,0 +1,22 @@
+model_list:
+  - model_name: "groq-llama-120b"
+    litellm_params:
+      model: "groq/openai/gpt-oss-120b"
+      api_key: "os.environ/GROQ_API_KEY"
+
+  - model_name: "openrouter-embeddings"
+    litellm_params:
+      model: "openrouter/openai/text-embedding-3-small" # Just an alias, openrouter doesn't strictly need a model for some embeddings if we pass it in the request, but litellm requires one. Wait, we pass the exact model in the request payload anyway.
+      api_key: "os.environ/OPENROUTER_API_KEY"
+
+  - model_name: "openrouter-images"
+    litellm_params:
+      model: "openrouter/black-forest-labs/flux.2-flex"
+      api_key: "os.environ/OPENROUTER_API_KEY"
+
+litellm_settings:
+  drop_params: true
+  set_verbose: false
+
+general_settings:
+  master_key: "sk-shop-me-master-key"
