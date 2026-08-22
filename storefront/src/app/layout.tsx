@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Script from "next/script";
+import DPDPCookieBanner from "../components/DPDPCookieBanner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -75,6 +76,7 @@ export default async function RootLayout({
           </div>
           <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />
           <Script src="https://sdk.cashfree.com/js/v3/cashfree.js" strategy="afterInteractive" />
+          <DPDPCookieBanner />
         </CurrencyProvider>
       </body>
     </html>

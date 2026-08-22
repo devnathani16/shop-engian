@@ -6,7 +6,7 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
 import ShopDashboard from './pages/ShopDashboard';
-import { ProtectedRoute } from './components/ProtectedRoute';
+import { ProtectedRoute } from './features/auth/ProtectedRoute';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
 

@@ -81,3 +81,52 @@ func handleSyncCustomer(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Customer synced successfully", "customer": customer})
 }
+
+func handleAnonymizeCustomer(c *gin.Context) {
+	shopInterface, exists := c.Get("shop")
+	if !exists {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Shop context missing"})
+		return
+	}
+	shop := shopInterface.(Shop)
+	customerID := c.Param("customer_id")
+
+	tenantDB, err := GlobalTenantManager.GetConnection(shop.DBName)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to tenant db"})
+		return
+	}
+
+	// Find customer
+	var customer Customer
+	if err := tenantDB.First(&customer, customerID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Customer not found"})
+		return
+	}
+
+	// DPDP Act Right to Erasure
+	// 1. Scrub Customer Table
+	err = tenantDB.Model(&customer).Updates(map[string]interface{}{
+		"Email": "anonymized_" + customerID + "@deleted.local",
+	}).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scrub customer data"})
+		return
+	}
+
+	// 2. Scrub Orders Table (overwrite PII, keep financial totals)
+	err = tenantDB.Model(&Order{}).Where("customer_id = ?", customerID).Updates(map[string]interface{}{
+		"CustomerEmail": "anonymized@deleted.local",
+		"CustomerName":  "Anonymized User",
+		"AddressLine1":  "Anonymized Address",
+		"City":          "Anonymized City",
+		"Phone":         "0000000000",
+	}).Error
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scrub orders data"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Customer data successfully anonymized as per DPDP Act"})
+}

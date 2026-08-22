@@ -243,6 +243,7 @@ func main() {
 		api.GET("/shops/:id/payment-configs", RequireShopPermission("*"), handleGetPaymentConfigs)
 		api.POST("/shops/:id/payment-configs/:provider", RequireShopPermission("*"), handleUpdatePaymentConfig)
 		api.GET("/shops/:id/customers", RequireShopPermission("*"), handleGetCustomers)
+		api.POST("/shops/:id/customers/:customer_id/request-erasure", RequireShopPermission("*"), handleAnonymizeCustomer)
 
 		api.GET("/shops/:id/discounts", RequireShopPermission("*"), handleGetDiscounts)
 		api.POST("/shops/:id/discounts", RequireShopPermission("*"), handleCreateDiscount)

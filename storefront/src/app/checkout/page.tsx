@@ -793,6 +793,19 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
+              <div className="mt-8 mb-6 bg-zinc-50 border border-zinc-200 p-4 rounded-xl flex items-start space-x-3">
+                <input 
+                  type="checkbox" 
+                  id="dpdp-consent"
+                  checked={dpdpConsent}
+                  onChange={(e) => setDpdpConsent(e.target.checked)}
+                  className="mt-1 w-5 h-5 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900"
+                />
+                <label htmlFor="dpdp-consent" className="text-xs text-zinc-600 leading-relaxed cursor-pointer select-none">
+                  <strong>Mandatory Consent:</strong> I explicitly consent to the collection and processing of my personal data (Name, Email, Address, Phone) to fulfill this order and for legal compliance purposes, in accordance with the Digital Personal Data Protection (DPDP) Act, 2023. I understand I have the right to request erasure of this data at any time.
+                </label>
+              </div>
+
               <button 
                 onClick={handleCheckoutClick}
                 disabled={!selectedRate || isProcessing}

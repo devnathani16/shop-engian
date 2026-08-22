@@ -4,22 +4,22 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { ArrowLeft, Package, ShoppingCart, Settings, Users, Menu, X, LayoutDashboard, Tag, Image as ImageIcon, UserCircle, LogOut, Store, ShieldCheck, FolderTree, Palette, Truck, CreditCard, FileText, Receipt, Sparkles, Shield } from 'lucide-react';
-import AuthSettingsModule from '../components/AuthSettingsModule';
-import MediaManagerModule from '../components/MediaManagerModule';
-import CategoryManagerModule from '../components/CategoryManagerModule';
-import ProductManagerModule from '../components/ProductManagerModule';
-import OrderManagerModule from '../components/OrderManagerModule';
-import CustomerManagerModule from '../components/CustomerManagerModule';
-import SettingsModule from '../components/SettingsModule';
-import ShippingModule from '../components/ShippingModule';
+import AuthSettingsModule from '../features/auth/AuthSettingsModule';
+import MediaManagerModule from '../features/storefront/MediaManagerModule';
+import CategoryManagerModule from '../features/catalog/CategoryManagerModule';
+import ProductManagerModule from '../features/catalog/ProductManagerModule';
+import OrderManagerModule from '../features/orders/OrderManagerModule';
+import CustomerManagerModule from '../features/customers/CustomerManagerModule';
+import SettingsModule from '../features/settings/SettingsModule';
+import ShippingModule from '../features/settings/ShippingModule';
 import CheckoutModule from '../components/dashboard/CheckoutModule';
 import CustomCheckoutFieldsModule from '../components/dashboard/CustomCheckoutFieldsModule';
-import DiscountModule from '../components/DiscountModule';
-import AbandonedCartRecoveryModal from '../components/AbandonedCartRecoveryModal';
-import ThemeBuilderModule from '../components/ThemeBuilderModule';
-import TaxModule from '../components/TaxModule';
-import AISettingsModule from '../components/AISettingsModule';
-import StaffRolesModule from '../components/StaffRolesModule';
+import DiscountModule from '../features/settings/DiscountModule';
+import AbandonedCartRecoveryModal from '../features/orders/AbandonedCartRecoveryModal';
+import ThemeBuilderModule from '../features/storefront/ThemeBuilderModule';
+import TaxModule from '../features/settings/TaxModule';
+import AISettingsModule from '../features/settings/AISettingsModule';
+import StaffRolesModule from '../features/settings/StaffRolesModule';
 
 const ShopDashboard: React.FC = () => {
   const { id } = useParams<{ id: string }>();
