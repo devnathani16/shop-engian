@@ -133,7 +133,7 @@ func AuthMiddleware() gin.HandlerFunc {
 
 func main() {
 	LoadConfig()
-	InitOpenprovider()
+	InitNamecheap()
 	InitTenantManager()
 
 	initDB()
