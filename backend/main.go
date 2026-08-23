@@ -34,7 +34,7 @@ func initDB() {
 	}
 
 	// Auto Migrate
-	err = db.AutoMigrate(&User{}, &OTP{}, &Shop{}, &ShopRole{}, &ShopStaff{}, &ShopInvite{})
+	err = db.AutoMigrate(&User{}, &OTP{}, &Shop{}, &ShopRole{}, &ShopStaff{}, &ShopInvite{}, &RegisteredDomain{})
 	if err != nil {
 		log.Fatalf("Failed to auto migrate database: %v", err)
 	}
@@ -133,6 +133,7 @@ func AuthMiddleware() gin.HandlerFunc {
 
 func main() {
 	LoadConfig()
+	InitOpenprovider()
 	InitTenantManager()
 
 	initDB()
@@ -262,6 +263,15 @@ func main() {
 		shopRoutes.POST("/:id/ai/generate-description", RequireShopPermission("*"), handleGenerateDescription)
 		shopRoutes.POST("/:id/ai/process-image", RequireShopPermission("*"), handleRemoveBackground)
 		
+		
+		// Global Domain Management Routes
+		api.POST("/domains/search", handleDomainSearch)
+		api.GET("/domains", handleGetUserDomains)
+		api.POST("/domains/purchase/initiate", handlePurchaseDomainInitiate)
+		api.POST("/domains/purchase/verify", handlePurchaseDomainVerify)
+		api.GET("/domains/:domain/dns", handleGetDNSRecords)
+		api.POST("/domains/:domain/dns", handleAddDNSRecord)
+
 		api.POST("/graphql", graphqlHandler())
 	}
 

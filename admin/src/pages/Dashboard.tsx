@@ -120,6 +120,18 @@ const Dashboard: React.FC = () => {
 
       {/* Main Content */}
       <main className="flex-1 max-w-7xl mx-auto w-full px-8 py-12">
+        
+        {/* Global Navigation */}
+        <div className="flex items-center space-x-4 mb-8 pb-4 border-b border-slate-200">
+          <button className="px-4 py-2 font-semibold text-primary border-b-2 border-primary">
+            My Stores
+          </button>
+          <Link to="/domains" className="px-4 py-2 font-medium text-slate-500 hover:text-slate-800 transition-colors flex items-center">
+            <Globe className="w-4 h-4 mr-2" />
+            My Domains
+          </Link>
+        </div>
+
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-slate-900">Your Stores</h1>

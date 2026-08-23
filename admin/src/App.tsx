@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
 import ShopDashboard from './pages/ShopDashboard';
+import DomainDashboard from './pages/DomainDashboard';
 import { ProtectedRoute } from './features/auth/ProtectedRoute';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
@@ -43,6 +44,7 @@ function App() {
               
               <Route element={<ProtectedRoute />}>
                 <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/domains" element={<DomainDashboard />} />
                 <Route path="/shop/:id/dashboard" element={<ShopDashboard />} />
               </Route>
             </Routes>

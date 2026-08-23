@@ -408,3 +408,19 @@ type InventoryInsight struct {
 	Severity  string    `gorm:"default:'info'" json:"severity"` // 'info', 'warning', 'critical'
 	CreatedAt time.Time `json:"created_at"`
 }
+
+
+// ===== GLOBAL DOMAIN MODELS =====
+
+type RegisteredDomain struct {
+	ID               uint      `gorm:"primarykey" json:"id"`
+	UserID           string    `gorm:"not null;index" json:"user_id"` // Global User ID
+	DomainName       string    `gorm:"type:varchar(255);uniqueIndex;not null" json:"domain_name"`
+	Status           string    `gorm:"not null;default:'pending'" json:"status"` // active, pending, expired
+	RegistrationDate time.Time `json:"registration_date"`
+	ExpiryDate       time.Time `json:"expiry_date"`
+	AutoRenew        bool      `gorm:"default:true" json:"auto_renew"`
+	OpenproviderID   string    `json:"openprovider_id"` // Reference ID from OP
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}

@@ -17,6 +17,10 @@ type Config struct {
 	ImageKitPrivateKey  string
 	ImageKitPublicKey   string
 	ImageKitURLEndpoint string
+	OpenproviderUsername string
+	OpenproviderPassword string
+	RazorpayKeyID string
+	RazorpayKeySecret string
 }
 
 var AppConfig *Config
@@ -36,6 +40,10 @@ func LoadConfig() {
 		ImageKitPrivateKey:  os.Getenv("IMAGEKIT_PRIVATE_KEY"),
 		ImageKitPublicKey:   os.Getenv("IMAGEKIT_PUBLIC_KEY"),
 		ImageKitURLEndpoint: os.Getenv("IMAGEKIT_URL_ENDPOINT"),
+		OpenproviderUsername: os.Getenv("OPENPROVIDER_USERNAME"),
+		OpenproviderPassword: os.Getenv("OPENPROVIDER_PASSWORD"),
+		RazorpayKeyID: os.Getenv("RAZORPAY_KEY_ID"),
+		RazorpayKeySecret: os.Getenv("RAZORPAY_KEY_SECRET"),
 	}
 
 	// Provide sensible defaults for local development database connection if missing

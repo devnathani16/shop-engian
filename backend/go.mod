@@ -10,6 +10,7 @@ require (
 	github.com/imagekit-developer/imagekit-go/v2 v2.9.0
 	github.com/joho/godotenv v1.5.1
 	github.com/microcosm-cc/bluemonday v1.0.27
+	github.com/razorpay/razorpay-go v1.4.1
 	github.com/resend/resend-go/v2 v2.28.0
 	github.com/stripe/stripe-go/v74 v74.30.0
 	github.com/vektah/gqlparser/v2 v2.5.36
