@@ -27,15 +27,8 @@ func handleDomainSearch(c *gin.Context) {
 		return
 	}
 
-	// Extract brand name (strip extension if user typed one)
-	brandName := domain
-	if strings.Contains(domain, ".") {
-		brandName = strings.SplitN(domain, ".", 2)[0]
-	}
-
-	fmt.Printf("[Domain Search] Checking brand: %s across 20 TLDs\n", brandName)
-
-	results, err := NCClient.CheckMultipleTLDs(brandName)
+	fmt.Printf("[Domain Search] Checking domain query: %s\n", domain)
+	results, err := NCClient.CheckMultipleTLDs(domain)
 	if err != nil {
 		fmt.Printf("[Domain Search] Error: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check domain availability", "details": err.Error()})
@@ -45,7 +38,7 @@ func handleDomainSearch(c *gin.Context) {
 	fmt.Printf("[Domain Search] Got %d results\n", len(results))
 
 	c.JSON(http.StatusOK, gin.H{
-		"brand":   brandName,
+		"brand":   domain,
 		"results": results,
 	})
 }
@@ -128,6 +121,7 @@ func handlePurchaseDomainVerify(c *gin.Context) {
 		RazorpayPaymentID string `json:"razorpay_payment_id"`
 		RazorpaySignature string `json:"razorpay_signature"`
 		Domain            string `json:"domain"`
+		Whois             DomainContact `json:"whois"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -143,7 +137,7 @@ func handlePurchaseDomainVerify(c *gin.Context) {
 	}
 
 	// 2. Tell Namecheap to Register the domain!
-	opRefID, err := NCClient.RegisterDomain(req.Domain)
+	opRefID, err := NCClient.RegisterDomain(req.Domain, req.Whois)
 	if err != nil {
 		// CRITICAL: We already took the user's money! We must log this for manual intervention or trigger a refund.
 		errMsg := fmt.Sprintf("Payment succeeded but Domain Registration failed! Details: %v", err)

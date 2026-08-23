@@ -42,6 +42,21 @@ const DomainDashboard: React.FC = () => {
 
   // DNS Modal State
   const [activeDnsDomain, setActiveDnsDomain] = useState<string | null>(null);
+
+  const [whoisData, setWhoisData] = useState({
+    firstName: "",
+    lastName: "",
+    address: "",
+    city: "",
+    state: "",
+    zip: "",
+    country: "US",
+    phone: "",
+    email: ""
+  });
+  const [showWhoisModal, setShowWhoisModal] = useState(false);
+  const [selectedDomainToBuy, setSelectedDomainToBuy] = useState<any>(null);
+
   const [dnsRecords, setDnsRecords] = useState<DNSRecord[]>([]);
   const [isLoadingDns, setIsLoadingDns] = useState(false);
 
@@ -132,7 +147,8 @@ const DomainDashboard: React.FC = () => {
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
-              domain: domain
+              domain: domain,
+              whois: whoisData
             }, { withCredentials: true });
 
             toast.success("Domain registered successfully!", { id: verifyToast });
@@ -296,7 +312,7 @@ const DomainDashboard: React.FC = () => {
 
                   {result.available && (
                     <button
-                      onClick={() => handlePurchase(result.domain, result.price)}
+                      onClick={() => { setSelectedDomainToBuy(result); setShowWhoisModal(true); }}
                       disabled={purchasingDomain === result.domain}
                       className="mt-4 w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-semibold py-2.5 rounded-lg transition-all flex items-center justify-center text-sm"
                     >
@@ -375,6 +391,62 @@ const DomainDashboard: React.FC = () => {
         </section>
 
       </main>
+
+      
+      {/* WHOIS Contact Modal */}
+      {showWhoisModal && selectedDomainToBuy && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+              <div>
+                <h3 className="text-xl font-bold text-slate-900">Domain Contact Info</h3>
+                <p className="text-sm text-slate-500 font-medium">ICANN requires valid contact details for {selectedDomainToBuy.domain}</p>
+              </div>
+              <button onClick={() => setShowWhoisModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 grid grid-cols-2 gap-4">
+              <div className="col-span-1">
+                <label className="block text-xs font-semibold text-slate-600 mb-1">First Name</label>
+                <input type="text" className="w-full p-2 border border-slate-300 rounded-lg text-sm" value={whoisData.firstName} onChange={e => setWhoisData({...whoisData, firstName: e.target.value})} />
+              </div>
+              <div className="col-span-1">
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Last Name</label>
+                <input type="text" className="w-full p-2 border border-slate-300 rounded-lg text-sm" value={whoisData.lastName} onChange={e => setWhoisData({...whoisData, lastName: e.target.value})} />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Email</label>
+                <input type="email" className="w-full p-2 border border-slate-300 rounded-lg text-sm" value={whoisData.email} onChange={e => setWhoisData({...whoisData, email: e.target.value})} />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Address</label>
+                <input type="text" className="w-full p-2 border border-slate-300 rounded-lg text-sm" value={whoisData.address} onChange={e => setWhoisData({...whoisData, address: e.target.value})} />
+              </div>
+              <div className="col-span-1">
+                <label className="block text-xs font-semibold text-slate-600 mb-1">City</label>
+                <input type="text" className="w-full p-2 border border-slate-300 rounded-lg text-sm" value={whoisData.city} onChange={e => setWhoisData({...whoisData, city: e.target.value})} />
+              </div>
+              <div className="col-span-1">
+                <label className="block text-xs font-semibold text-slate-600 mb-1">State/Province</label>
+                <input type="text" className="w-full p-2 border border-slate-300 rounded-lg text-sm" value={whoisData.state} onChange={e => setWhoisData({...whoisData, state: e.target.value})} />
+              </div>
+              <div className="col-span-1">
+                <label className="block text-xs font-semibold text-slate-600 mb-1">ZIP/Postal Code</label>
+                <input type="text" className="w-full p-2 border border-slate-300 rounded-lg text-sm" value={whoisData.zip} onChange={e => setWhoisData({...whoisData, zip: e.target.value})} />
+              </div>
+              <div className="col-span-1">
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Phone (+1.xxx)</label>
+                <input type="text" className="w-full p-2 border border-slate-300 rounded-lg text-sm" value={whoisData.phone} onChange={e => setWhoisData({...whoisData, phone: e.target.value})} placeholder="+1.5555555555" />
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
+              <button onClick={() => setShowWhoisModal(false)} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">Cancel</button>
+              <button onClick={() => { setShowWhoisModal(false); if(selectedDomainToBuy) handlePurchase(selectedDomainToBuy.domain, selectedDomainToBuy.price); }} className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg transition-colors">Continue to Payment</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* DNS Management Modal */}
       {activeDnsDomain && (

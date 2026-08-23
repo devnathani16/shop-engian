@@ -7,30 +7,115 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
 const namecheapSandboxURL = "https://api.sandbox.namecheap.com/xml.response"
 
 type NamecheapClient struct {
-	ApiUser  string
-	ApiKey   string
-	UserName string
-	ClientIP string
-	client   *http.Client
-	regClient *http.Client
+	ApiUser       string
+	ApiKey        string
+	UserName      string
+	ClientIP      string
+	client        *http.Client
+	regClient     *http.Client
+	livePricesUSD map[string]float64
+	mu            sync.RWMutex
 }
 
 var NCClient *NamecheapClient
 
 func InitNamecheap() {
 	NCClient = &NamecheapClient{
-		ApiUser:  AppConfig.NamecheapApiUser,
-		ApiKey:   AppConfig.NamecheapApiKey,
-		UserName: AppConfig.NamecheapUserName,
-		ClientIP: AppConfig.NamecheapClientIP,
-		client:   &http.Client{Timeout: 10 * time.Second},
-		regClient: &http.Client{Timeout: 45 * time.Second},
+		ApiUser:       AppConfig.NamecheapApiUser,
+		ApiKey:        AppConfig.NamecheapApiKey,
+		UserName:      AppConfig.NamecheapUserName,
+		ClientIP:      AppConfig.NamecheapClientIP,
+		client:        &http.Client{Timeout: 10 * time.Second},
+		regClient:     &http.Client{Timeout: 45 * time.Second},
+		livePricesUSD: map[string]float64{
+			"com":   11.65,
+			"net":   10.88,
+			"org":   10.88,
+			"io":    32.00,
+			"in":    7.90,
+			"co.in": 6.50,
+			"shop":  22.50,
+			"store": 40.85,
+			"co":    22.50,
+			"biz":   15.00,
+		},
+	}
+	go NCClient.syncLivePrices()
+}
+
+
+type NCPricingResponse struct {
+	XMLName xml.Name `xml:"ApiResponse"`
+	Status  string   `xml:"Status,attr"`
+	CommandResponse struct {
+		UserGetPricingResult struct {
+			ProductType struct {
+				ProductCategory []struct {
+					Name    string `xml:"Name,attr"`
+					Product []struct {
+						Name  string `xml:"Name,attr"`
+						Price []struct {
+							Duration int     `xml:"Duration,attr"`
+							YourPrice float64 `xml:"YourPrice,attr"`
+						} `xml:"Price"`
+					} `xml:"Product"`
+				} `xml:"ProductCategory"`
+			} `xml:"ProductType"`
+		} `xml:"UserGetPricingResult"`
+	} `xml:"CommandResponse"`
+}
+
+func (c *NamecheapClient) syncLivePrices() {
+	// Use a dedicated long-timeout client — the pricing XML is huge and takes 15-30s
+	pricingClient := &http.Client{Timeout: 60 * time.Second}
+
+	reqURL := c.buildBaseURL("namecheap.users.getPricing") + "&ProductType=DOMAIN&ActionName=REGISTER"
+	fmt.Println("[Namecheap] Fetching live pricing from API (this takes ~15s)...")
+	resp, err := pricingClient.Get(reqURL)
+	if err != nil {
+		fmt.Println("[Namecheap] Failed to fetch live pricing:", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	var ncResp NCPricingResponse
+	xml.Unmarshal(body, &ncResp)
+
+	if ncResp.Status == "OK" {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		
+		count := 0
+		for _, category := range ncResp.CommandResponse.UserGetPricingResult.ProductType.ProductCategory {
+			if category.Name == "register" {
+				for _, prod := range category.Product {
+					for _, price := range prod.Price {
+						if price.Duration == 1 {
+							c.livePricesUSD[prod.Name] = price.YourPrice
+							count++
+							break
+						}
+					}
+				}
+			}
+		}
+		// Log a few key prices so we can verify
+		fmt.Printf("[Namecheap] Synced LIVE pricing for %d TLDs\n", count)
+		for _, key := range []string{"com", "net", "org", "in", "io", "shop", "store", "biz", "co"} {
+			if p, ok := c.livePricesUSD[key]; ok {
+				fmt.Printf("  .%-6s => $%.2f (we charge: ₹%d with 35%% markup)\n", key, p, int(p*1.35*85.0))
+			}
+		}
+	} else {
+		fmt.Println("[Namecheap] Error in pricing response")
 	}
 }
 
@@ -87,25 +172,50 @@ type DomainSearchResult struct {
 	Premium   bool    `json:"premium"`
 }
 
-// CheckMultipleTLDs takes a base brand and returns availability for .com, .net, .org, .io, .in
-func (c *NamecheapClient) CheckMultipleTLDs(brand string) ([]DomainSearchResult, error) {
-	tlds := []string{"com", "net", "org", "io", "in"}
+// CheckMultipleTLDs takes a base brand and returns availability for various TLDs
+func (c *NamecheapClient) CheckMultipleTLDs(query string) ([]DomainSearchResult, error) {
+	query = strings.ToLower(strings.TrimSpace(query))
+	
+	// Default popular TLDs to suggest
+	tlds := []string{"com", "in", "co.in", "shop", "store", "net", "org", "co", "io", "biz"}
+	
 	var domains []string
-	for _, t := range tlds {
-		domains = append(domains, fmt.Sprintf("%s.%s", brand, t))
+	
+	// If the user typed a specific domain (e.g., "mybrand.shop"), check that exact one first
+	baseBrand := query
+	if strings.Contains(query, ".") {
+		domains = append(domains, query)
+		parts := strings.SplitN(query, ".", 2)
+		baseBrand = parts[0]
 	}
+
+	for _, t := range tlds {
+		dom := fmt.Sprintf("%s.%s", baseBrand, t)
+		// Avoid duplicate if they explicitly typed "brand.com"
+		if dom != query {
+			domains = append(domains, dom)
+		}
+	}
+	
 	domainList := strings.Join(domains, ",")
 
 	reqURL := c.buildBaseURL("namecheap.domains.check") + "&DomainList=" + domainList
 	
 	// Quick dummy prices for Sandbox (Namecheap sandbox doesn't return prices natively in check)
-	wholesaleUSD := map[string]float64{
-		"com": 9.29,
-		"net": 10.98,
-		"org": 10.98,
-		"io":  32.00,
-		"in":  8.00,
+	c.mu.RLock()
+	// Copy prices for the ones we care about
+	wholesaleUSD := make(map[string]float64)
+	for _, ext := range tlds {
+		wholesaleUSD[ext] = c.livePricesUSD[ext]
 	}
+	// Also get the one the user typed explicitly
+	if strings.Contains(query, ".") {
+		parts := strings.SplitN(query, ".", 2)
+		if len(parts) > 1 {
+			wholesaleUSD[parts[1]] = c.livePricesUSD[parts[1]]
+		}
+	}
+	c.mu.RUnlock()
 
 	resp, err := c.client.Get(reqURL)
 	if err != nil {
@@ -125,18 +235,20 @@ func (c *NamecheapClient) CheckMultipleTLDs(brand string) ([]DomainSearchResult,
 	for _, res := range ncResp.CommandResponse.DomainCheckResult {
 		isAvail := strings.ToLower(res.Available) == "true"
 		
-		parts := strings.Split(res.Domain, ".")
+		// Extract TLD to find base price
+		parts := strings.SplitN(res.Domain, ".", 2)
 		ext := "com"
 		if len(parts) > 1 {
-			ext = parts[len(parts)-1]
+			ext = parts[1] // covers "co.in" properly because SplitN with 2
 		}
 
 		baseUSD := wholesaleUSD[ext]
 		if baseUSD == 0 {
-			baseUSD = 15.00
+			baseUSD = 15.00 // Default fallback price
 		}
 		
-		finalINR := int((baseUSD * 1.20) * 85.0)
+		// Apply 35% commission markup
+		finalINR := int((baseUSD * 1.35) * 85.0)
 
 		results = append(results, DomainSearchResult{
 			Domain:    res.Domain,
@@ -148,26 +260,64 @@ func (c *NamecheapClient) CheckMultipleTLDs(brand string) ([]DomainSearchResult,
 	return results, nil
 }
 
+type DomainContact struct {
+	FirstName string `json:"firstName"`
+	LastName  string `json:"lastName"`
+	Address   string `json:"address"`
+	City      string `json:"city"`
+	State     string `json:"state"`
+	Zip       string `json:"zip"`
+	Country   string `json:"country"`
+	Phone     string `json:"phone"`
+	Email     string `json:"email"`
+}
+
 // RegisterDomain purchases a domain
-func (c *NamecheapClient) RegisterDomain(domain string) (string, error) {
+func (c *NamecheapClient) RegisterDomain(domain string, contact DomainContact) (string, error) {
 	u, _ := url.Parse(c.buildBaseURL("namecheap.domains.create"))
 	q := u.Query()
 	q.Set("DomainName", domain)
 	q.Set("Years", "1")
 	
-	// Namecheap requires extensive contact info to register
-	// We'll use mock data for the Sandbox
+	// Normalize phone to Namecheap format: +CountryCode.Number
+	// e.g. "9876543210" => "+91.9876543210", "+919876543210" => "+91.9876543210"
+	phone := strings.TrimSpace(contact.Phone)
+	phone = strings.ReplaceAll(phone, " ", "")
+	phone = strings.ReplaceAll(phone, "-", "")
+	if !strings.Contains(phone, ".") {
+		// No dot means not in Namecheap format yet
+		if strings.HasPrefix(phone, "+91") {
+			phone = "+91." + strings.TrimPrefix(phone, "+91")
+		} else if strings.HasPrefix(phone, "+") {
+			// Generic: split after country code (assume 1-3 digits)
+			// Try to find where country code ends
+			digits := strings.TrimPrefix(phone, "+")
+			if len(digits) > 10 {
+				cc := digits[:len(digits)-10]
+				num := digits[len(digits)-10:]
+				phone = "+" + cc + "." + num
+			} else {
+				phone = "+1." + digits // fallback to US
+			}
+		} else if len(phone) == 10 {
+			// Bare 10-digit number, assume India
+			phone = "+91." + phone
+		} else {
+			phone = "+1." + phone // fallback
+		}
+	}
+
 	fields := []string{"Registrant", "Tech", "Admin", "AuxBilling"}
 	for _, f := range fields {
-		q.Set(f+"FirstName", "Sandbox")
-		q.Set(f+"LastName", "User")
-		q.Set(f+"Address1", "123 Sandbox St")
-		q.Set(f+"City", "Los Angeles")
-		q.Set(f+"StateProvince", "CA")
-		q.Set(f+"PostalCode", "90001")
-		q.Set(f+"Country", "US")
-		q.Set(f+"Phone", "+1.5555555555")
-		q.Set(f+"EmailAddress", "sandbox@example.com")
+		q.Set(f+"FirstName", contact.FirstName)
+		q.Set(f+"LastName", contact.LastName)
+		q.Set(f+"Address1", contact.Address)
+		q.Set(f+"City", contact.City)
+		q.Set(f+"StateProvince", contact.State)
+		q.Set(f+"PostalCode", contact.Zip)
+		q.Set(f+"Country", contact.Country)
+		q.Set(f+"Phone", phone)
+		q.Set(f+"EmailAddress", contact.Email)
 	}
 
 	u.RawQuery = q.Encode()
